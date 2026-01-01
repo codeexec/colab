@@ -222,7 +222,7 @@ curl -s http://127.0.0.1:8000/execution_status/execution-uuid-here | jq .
 
 **Response (Completed):**
 ```json
-curl -s http://127.0.0.1:8000/execution_status/ba7b3a3e-44f5-41d7-8f0e-d90d8a0f33ae | jq .
+curl -s http://127.0.0.1:8000/execution_status/execution-uuid-here | jq .
 {
   "execution_id": "execution-uuid-here",
   "kernel_id": "kernel-uuid-here",
@@ -452,14 +452,12 @@ colab-code-executor/
 │       ├── server.py            # FastAPI server with LRO support
 │       ├── cli.py               # Command-line interface
 │       ├── test_server.py       # Unit tests (pytest)
+|       ├── test_lro.py          # Integration tests for LRO pattern
 │       └── py.typed             # Type checking marker
 ├── scripts/                     # Utility scripts
 │   ├── README.md               # Scripts documentation
-│   ├── test_local_install.sh   # Local testing script
 │   ├── publish.sh              # Automated test, build, and publish
 │   └── quickstart.sh           # Quick start script
-├── test_lro.py                 # Integration tests for LRO pattern
-├── LRO_API.md                  # Long-Running Operations API docs
 ├── pyproject.toml              # Package metadata and dependencies
 ├── MANIFEST.in                 # Distribution file inclusion rules
 ├── LICENSE                     # MIT License
