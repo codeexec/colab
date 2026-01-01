@@ -9,8 +9,8 @@ This script demonstrates:
 """
 
 import time
-import requests
-import json
+import traceback
+import requests  # pylint: disable=import-error
 
 # Configuration
 BASE_URL = "http://localhost:8000"
@@ -26,7 +26,7 @@ def start_kernel():
 
 def execute_code(kernel_id, code):
     """Execute code and return execution_id."""
-    print(f"Executing code (returns immediately)...")
+    print("Executing code (returns immediately)...")
     print(f"Code: {code[:50]}...")
     response = requests.post(
         f"{BASE_URL}/execute_code",
@@ -55,7 +55,7 @@ def poll_until_complete(execution_id, poll_interval=0.5):
         if status == "COMPLETED":
             print("\n✓ Execution completed!")
             return status_data
-        elif status == "FAILED":
+        if status == "FAILED":
             print(f"\n✗ Execution failed: {status_data.get('error')}")
             return status_data
 
@@ -113,12 +113,12 @@ def print_results(status_data):
             print("\n(No output produced)")
 
     elif status_data['status'] == 'FAILED':
-        print(f"\n❌ EXECUTION FAILED")
+        print("\n❌ EXECUTION FAILED")
         print(f"Error: {status_data.get('error')}")
 
     print("="*60)
 
-def main():
+def main():  # pylint: disable=too-many-locals
     """Run the test."""
     try:
         # Start kernel
@@ -204,9 +204,8 @@ print(f"Square roots: {sqrt_values}")
 
         print("\n✓ All tests completed successfully!")
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"\n✗ Error: {e}")
-        import traceback
         traceback.print_exc()
 
 if __name__ == "__main__":

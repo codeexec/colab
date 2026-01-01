@@ -13,6 +13,7 @@ Features modern Python best practices including:
 - Crash recovery with retry logic
 - StrEnum for type-safe enumerations
 """
+# pylint: disable=too-many-lines
 
 import asyncio
 import json
@@ -25,11 +26,11 @@ from datetime import datetime, timezone
 from enum import Enum
 from functools import wraps
 from typing import Any
-import uvicorn    
+import uvicorn
 
 
 try:
-    from enum import StrEnum
+    from enum import StrEnum  # pylint: disable=ungrouped-imports
 except ImportError:
     class StrEnum(str, Enum):
         """String enumeration for Python 3.10 compatibility."""
@@ -109,13 +110,17 @@ class StructuredLogger:
         """Check if message should be logged based on min_level."""
         return self._level_order[level] >= self._level_order[self.min_level]
 
-    def _log(self, level: LogLevel, scope: str, message: str, meta: dict[str, Any] | None = None) -> None:
+    def _log(
+        self, level: LogLevel, scope: str, message: str,
+        meta: dict[str, Any] | None = None
+    ) -> None:
         """Internal log method."""
         if not self._should_log(level):
             return
 
         entry = {
-            "ts": datetime.now(timezone.utc).isoformat(),  # timezone.utc for Python 3.10+ compatibility
+            # timezone.utc for Python 3.10+ compatibility
+            "ts": datetime.now(timezone.utc).isoformat(),
             "level": level.value,
             "scope": scope,
             "message": message,
@@ -208,12 +213,15 @@ class JupyterClient:
 
         self.logger.debug("get_xsrf_token", f"Attempting to connect to: {url}")
         response = await self._http_client.get(url, headers=headers, follow_redirects=True)
-        self.logger.debug("get_xsrf_token", f"Successfully connected, status: {response.status_code}")
+        self.logger.debug(
+            "get_xsrf_token", f"Successfully connected, status: {response.status_code}"
+        )
 
         # Extract XSRF token from cookies
         self.logger.debug("get_xsrf_token", f"All cookies: {dict(self._http_client.cookies)}")
         self._xsrf_token = self._http_client.cookies.get("_xsrf", "")
-        self.logger.debug("get_xsrf_token", f"Extracted XSRF token: {self._xsrf_token[:20] if self._xsrf_token else 'EMPTY'}")
+        token_preview = self._xsrf_token[:20] if self._xsrf_token else 'EMPTY'
+        self.logger.debug("get_xsrf_token", f"Extracted XSRF token: {token_preview}")
         return self._xsrf_token
 
     def _build_auth_headers(self, include_xsrf: bool = False) -> dict[str, str]:
@@ -261,7 +269,7 @@ class JupyterClient:
             raise RuntimeError("HTTP client not initialized")
 
         # Get XSRF token
-        xsrf_token = await self._get_xsrf_token()
+        _ = await self._get_xsrf_token()
 
         # Create kernel
         headers = self._build_auth_headers(include_xsrf=True)
@@ -286,7 +294,7 @@ class JupyterClient:
         if not self._http_client:
             raise RuntimeError("HTTP client not initialized")
 
-        xsrf_token = await self._get_xsrf_token()
+        _ = await self._get_xsrf_token()
         response = await self._http_client.delete(
             self._build_url(f"/api/kernels/{kernel_id}"),
             headers=self._build_auth_headers(include_xsrf=True),
@@ -408,7 +416,7 @@ class CrashRecoveryState:
 
 
 @dataclass
-class ExecutionState:
+class ExecutionState:  # pylint: disable=too-many-instance-attributes
     """Tracks state of a code execution operation.
 
     Attributes:
@@ -457,12 +465,12 @@ def with_retry(max_retries: int = 1, delay: float = 30.0):
             for attempt in range(max_retries + 1):
                 try:
                     return await func(*args, **kwargs)
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     last_exception = e
                     if attempt < max_retries:
                         await asyncio.sleep(delay)
                     else:
-                        raise last_exception
+                        raise last_exception from e
         return wrapper
     return decorator
 
@@ -594,7 +602,9 @@ class KernelManager:
 
         return {"execution_id": execution_id}
 
-    def _extract_final_output(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
+    def _extract_final_output(  # pylint: disable=too-many-branches
+        self, messages: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """Extract final output from Jupyter kernel messages.
 
         Processes all messages and returns only the final/latest output including:
@@ -672,7 +682,11 @@ class KernelManager:
                 self.logger.debug(
                     "extract_output",
                     "Found execute_reply",
-                    {"execution_count": exec_count, "status": content.get("status"), "content_keys": list(content.keys())}
+                    {
+                        "execution_count": exec_count,
+                        "status": content.get("status"),
+                        "content_keys": list(content.keys())
+                    }
                 )
                 if content.get("status") == "error":
                     output["status"] = "error"
@@ -694,7 +708,9 @@ class KernelManager:
 
         return output
 
-    async def _execute_code_background(self, execution_id: str) -> None:
+    async def _execute_code_background(  # pylint: disable=too-many-locals,too-many-statements
+        self, execution_id: str
+    ) -> None:
         """Execute code in background and update execution state with streaming.
 
         Args:
@@ -726,7 +742,9 @@ class KernelManager:
             )
 
             # Execute code with streaming - handle WebSocket directly for incremental updates
-            ws_url = self.client.settings.server_url.replace("http://", "ws://").replace("https://", "wss://")
+            ws_url = self.client.settings.server_url.replace(
+                "http://", "ws://"
+            ).replace("https://", "wss://")
             ws_url = f"{ws_url}/api/kernels/{kernel_id}/channels"
             if self.client.settings.token:
                 ws_url = f"{ws_url}?token={self.client.settings.token}"
@@ -831,7 +849,7 @@ class KernelManager:
                 }
             )
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             # Update to FAILED status
             execution_state.status = ExecutionStatus.FAILED
             execution_state.error = str(e)
@@ -860,7 +878,9 @@ class KernelManager:
         """
         execution_state = self.executions.get(execution_id)
         if not execution_state:
-            self.logger.warn("get_execution_status", "Execution not found", {"executionId": execution_id})
+            self.logger.warn(
+                "get_execution_status", "Execution not found", {"executionId": execution_id}
+            )
             raise HTTPException(status_code=404, detail="Execution not found")
 
         response = {
@@ -925,7 +945,7 @@ class KernelManager:
         # Best effort kernel cleanup
         try:
             await self.client.delete_kernel(kernel_id)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass  # Ignore cleanup errors
 
         self.kernels.pop(kernel_id, None)
@@ -963,17 +983,17 @@ class KernelManager:
             )
             return {"message": f"Kernel {kernel_id} shutdown"}
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.error(
                 "shutdown_kernel",
                 "Shutdown failed",
                 {"kernelId": kernel_id, "error": str(e)}
             )
-            raise HTTPException(status_code=500, detail="Shutdown failed")
+            raise HTTPException(status_code=500, detail="Shutdown failed") from e
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI):  # pylint: disable=redefined-outer-name
     """Application lifespan manager.
 
     Replaces deprecated @app.on_event("startup") and @app.on_event("shutdown").

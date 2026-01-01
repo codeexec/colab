@@ -3,7 +3,7 @@
 import sys
 import argparse
 import uvicorn
-from .server import Settings, StructuredLogger, LogLevel
+from .server import Settings, StructuredLogger
 
 
 def main():
@@ -88,7 +88,7 @@ Environment Variables:
     # Load settings (CLI args override env vars)
     try:
         settings = Settings(**settings_override)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error loading settings: {e}", file=sys.stderr)
         sys.exit(1)
 

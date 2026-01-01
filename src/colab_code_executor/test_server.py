@@ -6,8 +6,10 @@ Run with:
     pytest test_server.py -v
     pytest test_server.py --cov=server --cov-report=term-missing
 """
+# pylint: disable=redefined-outer-name,protected-access,import-outside-toplevel
 
 import json
+import os
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -34,7 +36,6 @@ from .server import (
 def settings(monkeypatch):
     """Test settings fixture."""
     # Clear all JUPYTER_* environment variables for clean test state
-    import os
     for key in list(os.environ.keys()):
         if key.startswith('JUPYTER_'):
             monkeypatch.delenv(key, raising=False)
@@ -243,7 +244,8 @@ class TestJupyterClient:
         assert url == "http://test-jupyter:8080/api/kernels?token=test-token-123"
 
         url_with_params = jupyter_client._build_url("/api/kernels?name=python")
-        assert url_with_params == "http://test-jupyter:8080/api/kernels?name=python&token=test-token-123"
+        expected = "http://test-jupyter:8080/api/kernels?name=python&token=test-token-123"
+        assert url_with_params == expected
 
     @pytest.mark.asyncio
     async def test_create_kernel_success(self, jupyter_client, mock_httpx_client):
@@ -370,7 +372,8 @@ class TestKernelManager:
 
         mock_response_success = MagicMock()
         mock_response_success.status_code = 201
-        mock_response_success.json = MagicMock(return_value={"id": "kernel-retry", "name": "python3"})
+        kernel_data = {"id": "kernel-retry", "name": "python3"}
+        mock_response_success.json = MagicMock(return_value=kernel_data)
         mock_response_success.raise_for_status = MagicMock()
 
         mock_httpx_client.post.side_effect = [mock_response_fail, mock_response_success]
@@ -426,7 +429,7 @@ class TestKernelManager:
 # Integration Tests: API Routes
 # =========================
 
-class TestAPIRoutes:
+class TestAPIRoutes:  # pylint: disable=too-few-public-methods
     """Integration tests for FastAPI routes."""
 
     def test_health_endpoint(self):
