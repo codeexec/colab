@@ -1,4 +1,4 @@
-"""Jupyter Kernel Proxy - FastAPI server for remote Jupyter kernel management.
+"""Colab Code Executor - FastAPI server for remote Jupyter kernel management.
 
 This package provides a proxy server that enables remote Jupyter kernel management
 with code execution capabilities. It exposes REST APIs for starting kernels,
@@ -8,7 +8,7 @@ Example:
     Basic usage:
 
     ```python
-    from jupyter_kernel_proxy import Settings, StructuredLogger, JupyterClient, KernelManager
+    from colab_code_executor import Settings, StructuredLogger, JupyterClient, KernelManager
 
     settings = Settings(server_url="http://localhost:8888")
     logger = StructuredLogger()
@@ -44,7 +44,7 @@ from .server import (
 )
 
 __version__ = "0.1.0"
-__author__ = "Your Name"
+__author__ = "Gonzalo Gasca Meza"
 __all__ = [
     "Settings",
     "LogLevel",

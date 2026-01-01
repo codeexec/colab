@@ -1,4 +1,4 @@
-"""Command-line interface for Jupyter Kernel Proxy."""
+"""Command-line interface for Colab Code Executor."""
 
 import sys
 import argparse
@@ -9,24 +9,24 @@ from .server import Settings, StructuredLogger, LogLevel
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Jupyter Kernel Proxy - FastAPI server for remote Jupyter kernel management",
+        description="Colab Code Executor - FastAPI server for remote Jupyter kernel management",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Start with default settings (requires JUPYTER_SERVER_URL env var)
-  jupyter-kernel-proxy
+  colab-code-executor
 
   # Start with custom Jupyter server URL
-  jupyter-kernel-proxy --server-url http://localhost:8888
+  colab-code-executor --server-url http://localhost:8888
 
   # Start with authentication token
-  jupyter-kernel-proxy --server-url http://localhost:8888 --token mytoken123
+  colab-code-executor --server-url http://localhost:8888 --token mytoken123
 
   # Start with debug logging
-  jupyter-kernel-proxy --log-level DEBUG
+  colab-code-executor --log-level DEBUG
 
   # Custom host and port
-  jupyter-kernel-proxy --host 127.0.0.1 --port 9000
+  colab-code-executor --host 127.0.0.1 --port 9000
 
 Environment Variables:
   JUPYTER_SERVER_URL    - Jupyter server URL (default: http://127.0.0.1:8080)
@@ -94,13 +94,13 @@ Environment Variables:
 
     # Display startup info
     logger = StructuredLogger(min_level=settings.log_level)
-    logger.info("cli", f"Starting Jupyter Kernel Proxy on {args.host}:{args.port}")
+    logger.info("cli", f"Starting Colab Code Executor on {args.host}:{args.port}")
     logger.info("cli", f"Jupyter server: {settings.server_url}")
     logger.info("cli", f"Log level: {settings.log_level}")
 
     # Start server
     uvicorn.run(
-        "jupyter_kernel_proxy.server:app",
+        "colab_code_executor.server:app",
         host=args.host,
         port=args.port,
         log_level=settings.log_level.lower()

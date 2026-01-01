@@ -1,4 +1,4 @@
-# Jupyter Kernel Proxy
+# Colab Code Executor
 
 A FastAPI server for remote Jupyter kernel management with code execution capabilities.
 
@@ -22,14 +22,14 @@ This package allows creation of remote Jupyter kernel runtimes with code executi
 ### From PyPI (once published)
 
 ```bash
-pip install jupyter-kernel-proxy
+pip install colab-code-executor
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/jupyter-kernel-proxy
-cd jupyter-kernel-proxy
+git clone git@github.com:codeexec/colab.git
+cd colab
 pip install -e .
 ```
 
@@ -46,23 +46,23 @@ pip install -e ".[dev]"
 ```bash
 # Using environment variable
 export JUPYTER_SERVER_URL="http://127.0.0.1:8888"
-jupyter-kernel-proxy
+colab-code-executor
 
 # Using CLI arguments
-jupyter-kernel-proxy --server-url http://127.0.0.1:8888 --port 8000
+colab-code-executor --server-url http://127.0.0.1:8888 --port 8000
 
 # With authentication token
-jupyter-kernel-proxy --server-url http://127.0.0.1:8888 --token mytoken123
+colab-code-executor --server-url http://127.0.0.1:8888 --token mytoken123
 
 # With debug logging
-jupyter-kernel-proxy --log-level DEBUG
+colab-code-executor --log-level DEBUG
 ```
 
 ### Python API
 
 ```python
 import asyncio
-from jupyter_kernel_proxy import Settings, StructuredLogger, JupyterClient, KernelManager
+from colab_code_executor import Settings, StructuredLogger, JupyterClient, KernelManager
 
 async def main():
     # Configure settings
@@ -175,8 +175,8 @@ Configure via environment variables with `JUPYTER_` prefix or `.env` file:
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/jupyter-kernel-proxy
-cd jupyter-kernel-proxy
+git clone git@github.com:codeexec/colab.git
+cd colab
 
 # Create virtual environment
 python -m venv venv
@@ -189,19 +189,26 @@ pip install -e ".[dev]"
 ### Run Tests
 
 ```bash
+# Run test script
+./scripts/test_local_install.sh
+
+# Or use pytest (if available)
 pytest
-pytest --cov=jupyter_kernel_proxy --cov-report=html
+pytest --cov=colab_code_executor --cov-report=html
 ```
 
 ### Run Server Locally
 
 ```bash
-# Direct Python execution
+# Using the CLI (recommended)
 export JUPYTER_SERVER_URL="http://127.0.0.1:8888"
-python -m jupyter_kernel_proxy.server
+colab-code-executor
 
-# Or use the CLI
-jupyter-kernel-proxy --server-url http://127.0.0.1:8888
+# Or with options
+colab-code-executor --server-url http://127.0.0.1:8888 --port 8000
+
+# Direct Python execution
+python -m colab_code_executor.server
 ```
 
 ## Publishing to PyPI
@@ -210,7 +217,13 @@ See [PUBLISHING.md](PUBLISHING.md) for detailed instructions on publishing this 
 
 Quick publish:
 ```bash
-./publish.sh
+./scripts/publish.sh
+```
+
+For token-based upload to TestPyPI:
+```bash
+export TESTPYPI_TOKEN='pypi-YOUR-TOKEN-HERE'
+./scripts/upload_with_token.sh
 ```
 
 ## Requirements
@@ -222,20 +235,24 @@ Quick publish:
 ## Project Structure
 
 ```
-jupyter-kernel-proxy/
+colab-code-executor/
 ├── src/
-│   └── jupyter_kernel_proxy/
-│       ├── __init__.py       # Package exports
-│       ├── server.py         # Main FastAPI server
-│       ├── cli.py           # Command-line interface
-│       └── py.typed         # Type checking marker
-├── pyproject.toml           # Package metadata and dependencies
-├── setup.py                 # Backward compatibility
-├── MANIFEST.in             # Distribution file inclusion rules
-├── LICENSE                 # MIT License
-├── README.md              # This file
-├── PUBLISHING.md          # PyPI publishing guide
-└── publish.sh             # Publishing automation script
+│   └── colab_code_executor/     # Main package
+│       ├── __init__.py          # Package exports
+│       ├── server.py            # FastAPI server implementation
+│       ├── cli.py               # Command-line interface
+│       └── py.typed             # Type checking marker
+├── scripts/                     # Utility scripts
+│   ├── README.md               # Scripts documentation
+│   ├── test_local_install.sh   # Local testing script
+│   ├── publish.sh              # Build and publish script
+│   └── quickstart.sh           # Quick start script
+├── pyproject.toml              # Package metadata and dependencies
+├── setup.py                    # Backward compatibility
+├── MANIFEST.in                 # Distribution file inclusion rules
+├── LICENSE                     # MIT License
+├── README.md                   # This file
+├── PUBLISHING.md               # PyPI publishing guide
 ```
 
 ## License

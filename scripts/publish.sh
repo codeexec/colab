@@ -4,7 +4,7 @@
 set -e  # Exit on error
 
 echo "==================================="
-echo "Jupyter Kernel Proxy - Publishing"
+echo "Colab Code Executor - Publishing"
 echo "==================================="
 echo ""
 
@@ -60,7 +60,7 @@ case $choice in
         twine upload --repository testpypi dist/*
         echo ""
         echo "Test installation with:"
-        echo "pip install --index-url https://test.pypi.org/simple/ jupyter-kernel-proxy"
+        echo "pip install --index-url https://test.pypi.org/simple/ colab-code-executor"
         ;;
     2)
         echo ""
@@ -70,7 +70,7 @@ case $choice in
             twine upload dist/*
             echo ""
             echo "Installation command:"
-            echo "pip install jupyter-kernel-proxy"
+            echo "pip install colab-code-executor"
         else
             echo "Upload cancelled."
         fi

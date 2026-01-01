@@ -6,8 +6,12 @@ include requirements.txt
 
 # Include all Python files
 recursive-include src *.py
+recursive-include src *.typed
 
 # Exclude development and cache files
 global-exclude __pycache__
 global-exclude *.py[co]
 global-exclude .DS_Store
+global-exclude .ipynb_checkpoints
+prune src/*/.ipynb_checkpoints
+prune */.ipynb_checkpoints

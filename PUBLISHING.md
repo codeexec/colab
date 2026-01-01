@@ -1,6 +1,6 @@
 # Publishing to PyPI Guide
 
-This guide walks you through publishing your `jupyter-kernel-proxy` package to PyPI.
+This guide walks you through publishing your `colab-code-executor` package to PyPI.
 
 ## Prerequisites
 
@@ -32,14 +32,14 @@ python -m build
 ```
 
 This creates:
-- `dist/jupyter-kernel-proxy-0.1.0.tar.gz` (source distribution)
-- `dist/jupyter_kernel_proxy-0.1.0-py3-none-any.whl` (wheel)
+- `dist/colab-code-executor-0.1.0.tar.gz` (source distribution)
+- `dist/colab-code-executor-0.1.0-py3-none-any.whl` (wheel)
 
 ## Step 3: Check the Package
 
 ```bash
 # Verify package contents
-tar -tzf dist/jupyter-kernel-proxy-0.1.0.tar.gz
+tar -tzf dist/colab-code-executor-0.1.0.tar.gz
 
 # Check package metadata and quality
 twine check dist/*
@@ -61,10 +61,10 @@ Test installation:
 
 ```bash
 # Install from TestPyPI
-pip install --index-url https://test.pypi.org/simple/ jupyter-kernel-proxy
+pip install --index-url https://test.pypi.org/simple/ colab-code-executor
 
 # Test the CLI
-jupyter-kernel-proxy --help
+colab-code-executor --help
 ```
 
 ## Step 5: Upload to PyPI
@@ -116,7 +116,7 @@ Instead of username/password, use API tokens:
 When releasing new versions:
 
 1. Update version in `pyproject.toml`
-2. Update `__version__` in `src/jupyter_kernel_proxy/__init__.py`
+2. Update `__version__` in `src/colab_code_executor/__init__.py`
 3. Create git tag:
    ```bash
    git tag -a v0.1.0 -m "Release version 0.1.0"
@@ -165,14 +165,14 @@ After publishing, verify your package:
 
 ```bash
 # Install from PyPI
-pip install jupyter-kernel-proxy
+pip install colab-code-executor
 
 # Test the CLI
-jupyter-kernel-proxy --version
-jupyter-kernel-proxy --help
+colab-code-executor --version
+colab-code-executor --help
 
 # Test programmatic usage
-python -c "from jupyter_kernel_proxy import Settings, JupyterClient; print('OK')"
+python -c "from colab_code_executor import Settings, JupyterClient; print('OK')"
 ```
 
 ## Troubleshooting
@@ -186,8 +186,8 @@ python -c "from jupyter_kernel_proxy import Settings, JupyterClient; print('OK')
 - Check token has upload permissions
 
 **Import errors after install:**
-- Verify package structure: `pip show -f jupyter-kernel-proxy`
-- Check `src/jupyter_kernel_proxy/__init__.py` imports
+- Verify package structure: `pip show -f colab-code-executor`
+- Check `src/colab_code_executor/__init__.py` imports
 
 **Missing dependencies:**
 - Ensure all dependencies are listed in `pyproject.toml`

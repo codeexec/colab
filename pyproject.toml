@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "jupyter-kernel-proxy"
-version = "0.1.0"
+name = "colab-code-executor"
+version = "0.2.0"
 description = "FastAPI server for remote Jupyter kernel management with code execution capabilities"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,7 +15,7 @@ authors = [
 maintainers = [
     {name = "Gonzalo Gasca Meza", email = "gascagonzalo@gmail.com"}
 ]
-keywords = ["jupyter", "kernel", "fastapi", "code-execution", "proxy"]
+keywords = ["jupyter", "kernel", "fastapi", "code-execution", "proxy", "colab"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -51,11 +51,11 @@ Repository = "https://github.com/codeexec/colab"
 Issues = "https://github.com/codeexec/colab/issues"
 
 [project.scripts]
-jupyter-kernel-proxy = "jupyter_kernel_proxy.cli:main"
+colab-code-executor = "colab_code_executor.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["jupyter_kernel_proxy*"]
+include = ["colab_code_executor*"]
 
 [tool.setuptools.package-data]
-jupyter_kernel_proxy = ["py.typed"]
+colab_code_executor = ["py.typed"]
