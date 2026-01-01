@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+httpx
+websockets
+pydantic
+pydantic-settings
+pytest
+pytest-asyncio
+pytest-mock
+pytest-cov
