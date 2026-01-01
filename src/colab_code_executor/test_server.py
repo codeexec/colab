@@ -16,7 +16,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from server import (
+from .server import (
     CrashRecoveryState,
     JupyterClient,
     KernelManager,
@@ -144,7 +144,7 @@ class TestSettings:
                 monkeypatch.delenv(key, raising=False)
 
         settings = Settings(_env_file=None)  # Disable .env loading
-        assert settings.server_url == "http://localhost:8080"
+        assert settings.server_url == "http://127.0.0.1:8080"
         assert settings.token == ""
         assert settings.crash_sleep_duration == 30.0
 
@@ -316,7 +316,7 @@ class TestJupyterClient:
 
             # Mock uuid to control msg_id
             with patch("uuid.uuid4", return_value=MagicMock(hex=test_msg_id)):
-                with patch("server.uuid.uuid4") as mock_uuid:
+                with patch("colab_code_executor.server.uuid.uuid4") as mock_uuid:
                     mock_uuid.return_value = test_msg_id
 
                     # Need to allow the real uuid call but control str(uuid.uuid4())

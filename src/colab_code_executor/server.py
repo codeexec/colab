@@ -55,6 +55,14 @@ class LogLevel(StrEnum):
     ERROR = "ERROR"
 
 
+class ExecutionStatus(StrEnum):
+    """Execution operation status."""
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
 class Settings(BaseSettings):
     """Application configuration with environment variable support.
 
@@ -399,6 +407,37 @@ class CrashRecoveryState:
         return self.sleep_until
 
 
+@dataclass
+class ExecutionState:
+    """Tracks state of a code execution operation.
+
+    Attributes:
+        execution_id: Unique ID for this execution
+        kernel_id: Kernel executing the code
+        code: Code being executed
+        status: Current execution status
+        results: Execution results (when completed)
+        error: Error message (when failed)
+        created_at: Timestamp when execution was created
+        started_at: Timestamp when execution started
+        completed_at: Timestamp when execution completed/failed
+    """
+    execution_id: str
+    kernel_id: str
+    code: str
+    status: ExecutionStatus = ExecutionStatus.PENDING
+    results: list[dict[str, Any]] | None = None
+    error: str | None = None
+    created_at: float = 0.0
+    started_at: float | None = None
+    completed_at: float | None = None
+
+    def __post_init__(self):
+        """Initialize timestamps."""
+        if self.created_at == 0.0:
+            self.created_at = time.time()
+
+
 def with_retry(max_retries: int = 1, delay: float = 30.0):
     """Decorator for automatic retry with delay.
 
@@ -450,6 +489,7 @@ class KernelManager:
         self.crash_sleep_duration = crash_sleep_duration
         self.kernels: dict[str, dict[str, Any]] = {}
         self.crash_recovery = CrashRecoveryState()
+        self.executions: dict[str, ExecutionState] = {}
 
     async def _wait_for_crash_recovery(self, scope: str) -> None:
         """Wait if system is in crash recovery mode.
@@ -512,53 +552,345 @@ class KernelManager:
             # Re-raise to trigger @with_retry decorator
             raise
 
-    async def execute_code(self, kernel_id: str, code: str) -> dict[str, list[dict[str, Any]]]:
-        """Execute code on kernel with crash recovery.
+    async def execute_code(self, kernel_id: str, code: str) -> dict[str, str]:
+        """Start code execution as a long-running operation.
 
         Args:
             kernel_id: Target kernel ID
             code: Python code to execute
 
         Returns:
-            Dictionary with 'results' list of messages
+            Dictionary with 'execution_id' for tracking
 
         Raises:
-            HTTPException: If kernel not found or execution fails
+            HTTPException: If kernel not found
         """
-        await self._wait_for_crash_recovery("execute_code")
-
         if kernel_id not in self.kernels:
             self.logger.warn("execute_code", "Kernel not found", {"kernelId": kernel_id})
             raise HTTPException(status_code=404, detail="Kernel not found")
 
+        # Create execution state
+        execution_id = str(uuid.uuid4())
+        execution_state = ExecutionState(
+            execution_id=execution_id,
+            kernel_id=kernel_id,
+            code=code
+        )
+        self.executions[execution_id] = execution_state
+
         self.logger.info(
             "execute_code",
             "Execution requested",
-            {"kernelId": kernel_id, "codeSize": len(code)}
+            {
+                "kernelId": kernel_id,
+                "executionId": execution_id,
+                "codeSize": len(code),
+                "codePreview": code[:200] if len(code) > 200 else code
+            }
         )
 
-        try:
-            results = await self.client.execute_code_via_websocket(kernel_id, code)
+        # Start background execution
+        asyncio.create_task(self._execute_code_background(execution_id))
 
-            for msg in results:
-                msg_type = msg.get("header", {}).get("msg_type", "unknown")
-                self.logger.info(
-                    "execute_code",
-                    "Message received",
-                    {"kernelId": kernel_id, "msgType": msg_type}
+        return {"execution_id": execution_id}
+
+    def _extract_final_output(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
+        """Extract final output from Jupyter kernel messages.
+
+        Processes all messages and returns only the final/latest output including:
+        - Latest stdout/stderr
+        - Execute results (return values)
+        - Errors and tracebacks
+
+        Args:
+            messages: List of raw Jupyter protocol messages
+
+        Returns:
+            Dictionary with processed output
+        """
+        output = {
+            "stdout": "",
+            "stderr": "",
+            "result": None,
+            "error": None,
+            "traceback": None,
+            "execution_count": None,
+            "status": "ok"
+        }
+
+        # Collect all stream outputs
+        stdout_parts = []
+        stderr_parts = []
+
+        for msg in messages:
+            msg_type = msg.get("header", {}).get("msg_type")
+            content = msg.get("content", {})
+
+            # Collect stdout/stderr
+            if msg_type == "stream":
+                name = content.get("name")
+                text = content.get("text", "")
+                if name == "stdout":
+                    stdout_parts.append(text)
+                elif name == "stderr":
+                    stderr_parts.append(text)
+
+            # Collect execute_result (return values)
+            elif msg_type == "execute_result":
+                exec_count = content.get("execution_count")
+                if exec_count is not None:
+                    output["execution_count"] = exec_count
+                self.logger.debug(
+                    "extract_output",
+                    "Found execute_result",
+                    {"execution_count": exec_count, "content_keys": list(content.keys())}
                 )
+                # Get data in order of preference: text/plain, then others
+                data = content.get("data", {})
+                if "text/plain" in data:
+                    output["result"] = data["text/plain"]
+                elif data:
+                    output["result"] = data
+
+            # Collect display_data (plots, images, etc.)
+            elif msg_type == "display_data":
+                data = content.get("data", {})
+                if not output["result"]:  # Only set if no execute_result
+                    output["result"] = data
+
+            # Collect errors
+            elif msg_type == "error":
+                output["status"] = "error"
+                output["error"] = content.get("ename", "Error")
+                output["traceback"] = content.get("traceback", [])
+
+            # Get execution count from execute_reply
+            elif msg_type == "execute_reply":
+                exec_count = content.get("execution_count")
+                if exec_count is not None:
+                    output["execution_count"] = exec_count
+                self.logger.debug(
+                    "extract_output",
+                    "Found execute_reply",
+                    {"execution_count": exec_count, "status": content.get("status"), "content_keys": list(content.keys())}
+                )
+                if content.get("status") == "error":
+                    output["status"] = "error"
+
+        # Join all stdout/stderr parts
+        output["stdout"] = "".join(stdout_parts)
+        output["stderr"] = "".join(stderr_parts)
+
+        self.logger.debug(
+            "extract_output",
+            "Final output",
+            {
+                "execution_count": output["execution_count"],
+                "stdout_length": len(output["stdout"]),
+                "stderr_length": len(output["stderr"]),
+                "has_result": output["result"] is not None
+            }
+        )
+
+        return output
+
+    async def _execute_code_background(self, execution_id: str) -> None:
+        """Execute code in background and update execution state with streaming.
+
+        Args:
+            execution_id: Execution ID to process
+        """
+        execution_state = self.executions.get(execution_id)
+        if not execution_state:
+            return
+
+        kernel_id = execution_state.kernel_id
+        code = execution_state.code
+
+        try:
+            await self._wait_for_crash_recovery("execute_code_background")
+
+            # Update to RUNNING status
+            execution_state.status = ExecutionStatus.RUNNING
+            execution_state.started_at = time.time()
+            execution_state.results = []  # Initialize empty results for streaming
 
             self.logger.info(
-                "execute_code",
-                "Execution completed",
-                {"kernelId": kernel_id, "messageCount": len(results)}
+                "execute_code_background",
+                "Execution started",
+                {
+                    "kernelId": kernel_id,
+                    "executionId": execution_id,
+                    "code": code
+                }
             )
 
-            return {"results": results}
+            # Execute code with streaming - handle WebSocket directly for incremental updates
+            ws_url = self.client.settings.server_url.replace("http://", "ws://").replace("https://", "wss://")
+            ws_url = f"{ws_url}/api/kernels/{kernel_id}/channels"
+            if self.client.settings.token:
+                ws_url = f"{ws_url}?token={self.client.settings.token}"
+
+            msg_id = str(uuid.uuid4())
+            execute_msg = {
+                "header": {
+                    "msg_id": msg_id,
+                    "username": "",
+                    "session": str(uuid.uuid4()),
+                    "msg_type": "execute_request",
+                    "version": "5.3"
+                },
+                "parent_header": {},
+                "metadata": {},
+                "content": {
+                    "code": code,
+                    "silent": False,
+                    "store_history": True,
+                    "user_expressions": {},
+                    "allow_stdin": False,
+                    "stop_on_error": True
+                },
+                "buffers": [],
+                "channel": "shell"
+            }
+
+            async with websockets.connect(ws_url) as ws:
+                self.logger.info(
+                    "execute_code_background",
+                    "WebSocket connected, sending execute request",
+                    {"kernelId": kernel_id, "executionId": execution_id, "msgId": msg_id}
+                )
+                await ws.send(json.dumps(execute_msg))
+
+                while True:
+                    msg_raw = await asyncio.wait_for(ws.recv(), timeout=60.0)
+                    msg = json.loads(msg_raw)
+
+                    # Update results incrementally for streaming
+                    execution_state.results.append(msg)
+
+                    msg_type = msg.get("header", {}).get("msg_type", "unknown")
+                    content = msg.get("content", {})
+
+                    # Log message details based on type
+                    log_meta = {
+                        "kernelId": kernel_id,
+                        "executionId": execution_id,
+                        "msgType": msg_type
+                    }
+
+                    # Add specific content for different message types
+                    if msg_type == "stream":
+                        log_meta["streamName"] = content.get("name")
+                        log_meta["text"] = content.get("text", "")[:100]  # First 100 chars
+                        self.logger.info("execute_code_background", "Stream output", log_meta)
+                    elif msg_type == "execute_result":
+                        log_meta["executionCount"] = content.get("execution_count")
+                        log_meta["dataKeys"] = list(content.get("data", {}).keys())
+                        self.logger.info("execute_code_background", "Execute result", log_meta)
+                    elif msg_type == "error":
+                        log_meta["errorName"] = content.get("ename")
+                        log_meta["errorValue"] = content.get("evalue")
+                        self.logger.error("execute_code_background", "Execution error", log_meta)
+                    elif msg_type == "status":
+                        log_meta["executionState"] = content.get("execution_state")
+                        self.logger.info("execute_code_background", "Status update", log_meta)
+                    else:
+                        self.logger.debug("execute_code_background", "Message received", log_meta)
+
+                    # Check if execution is complete
+                    if msg_type == "status":
+                        if msg.get("content", {}).get("execution_state") == "idle":
+                            if msg.get("parent_header", {}).get("msg_id") == msg_id:
+                                self.logger.info(
+                                    "execute_code_background",
+                                    "Execution complete, kernel idle",
+                                    {"kernelId": kernel_id, "executionId": execution_id}
+                                )
+                                break
+
+            # Update to COMPLETED status
+            execution_state.status = ExecutionStatus.COMPLETED
+            execution_state.completed_at = time.time()
+
+            # Extract and log final output
+            final_output = self._extract_final_output(execution_state.results)
+
+            self.logger.info(
+                "execute_code_background",
+                "Execution completed",
+                {
+                    "kernelId": kernel_id,
+                    "executionId": execution_id,
+                    "messageCount": len(execution_state.results),
+                    "finalStatus": final_output.get("status"),
+                    "hasStdout": bool(final_output.get("stdout")),
+                    "hasStderr": bool(final_output.get("stderr")),
+                    "hasResult": final_output.get("result") is not None,
+                    "executionCount": final_output.get("execution_count")
+                }
+            )
 
         except Exception as e:
+            # Update to FAILED status
+            execution_state.status = ExecutionStatus.FAILED
+            execution_state.error = str(e)
+            execution_state.completed_at = time.time()
+
+            self.logger.error(
+                "execute_code_background",
+                "Execution failed",
+                {"kernelId": kernel_id, "executionId": execution_id, "error": str(e)}
+            )
+
+            # Handle crash recovery
             await self._handle_crash_recovery(kernel_id, e)
-            raise HTTPException(status_code=404, detail="Kernel crashed")
+
+    def get_execution_status(self, execution_id: str) -> dict[str, Any]:
+        """Get status of a code execution.
+
+        Args:
+            execution_id: Execution ID to check
+
+        Returns:
+            Dictionary with execution status and output (including partial output while running)
+
+        Raises:
+            HTTPException: If execution not found
+        """
+        execution_state = self.executions.get(execution_id)
+        if not execution_state:
+            self.logger.warn("get_execution_status", "Execution not found", {"executionId": execution_id})
+            raise HTTPException(status_code=404, detail="Execution not found")
+
+        response = {
+            "execution_id": execution_state.execution_id,
+            "kernel_id": execution_state.kernel_id,
+            "status": execution_state.status.value,
+            "created_at": execution_state.created_at,
+            "started_at": execution_state.started_at,
+            "completed_at": execution_state.completed_at,
+        }
+
+        # Return output for both RUNNING and COMPLETED states (streaming output)
+        if execution_state.results and len(execution_state.results) > 0:
+            output = self._extract_final_output(execution_state.results)
+            response["output"] = output
+
+        if execution_state.status == ExecutionStatus.FAILED and execution_state.error:
+            response["error"] = execution_state.error
+
+        self.logger.debug(
+            "get_execution_status",
+            "Status retrieved",
+            {
+                "executionId": execution_id,
+                "status": execution_state.status.value,
+                "messageCount": len(execution_state.results) if execution_state.results else 0
+            }
+        )
+
+        return response
 
     async def _handle_crash_recovery(self, kernel_id: str, error: Exception) -> None:
         """Handle kernel crash with recovery sleep.
@@ -719,25 +1051,74 @@ async def start_kernel(request: Request) -> dict[str, str]:
     Raises:
         HTTPException: If kernel start fails
     """
+    logger: StructuredLogger = request.app.state.logger
+    logger.info("api_start_kernel", "POST /start_kernel endpoint called")
     manager: KernelManager = request.app.state.kernel_manager
-    return await manager.start_kernel()
+    result = await manager.start_kernel()
+    logger.info(
+        "api_start_kernel",
+        "Kernel started via API",
+        {"kernelId": result.get("id")}
+    )
+    return result
 
 
 @app.post("/execute_code")
-async def execute_code(req: ExecuteCodeRequest, request: Request) -> dict[str, list[dict]]:
-    """Execute code on kernel.
+async def execute_code(req: ExecuteCodeRequest, request: Request) -> dict[str, str]:
+    """Start code execution as a long-running operation.
 
     Args:
         req: Execution request with kernel ID and code
 
     Returns:
-        Dictionary with execution results
+        Dictionary with execution_id for tracking
 
     Raises:
-        HTTPException: If kernel not found or execution fails
+        HTTPException: If kernel not found
     """
+    logger: StructuredLogger = request.app.state.logger
+    logger.info(
+        "api_execute_code",
+        "POST /execute_code endpoint called",
+        {"kernelId": req.id, "codeLength": len(req.code)}
+    )
     manager: KernelManager = request.app.state.kernel_manager
-    return await manager.execute_code(req.id, req.code)
+    result = await manager.execute_code(req.id, req.code)
+    logger.info(
+        "api_execute_code",
+        "Execution initiated",
+        {"kernelId": req.id, "executionId": result.get("execution_id")}
+    )
+    return result
+
+
+@app.get("/execution_status/{execution_id}")
+async def get_execution_status(execution_id: str, request: Request) -> dict[str, Any]:
+    """Get status of a code execution operation.
+
+    Args:
+        execution_id: Execution ID to check
+
+    Returns:
+        Dictionary with execution status, results, and metadata
+
+    Raises:
+        HTTPException: If execution not found
+    """
+    logger: StructuredLogger = request.app.state.logger
+    logger.debug(
+        "api_execution_status",
+        "GET /execution_status endpoint called",
+        {"executionId": execution_id}
+    )
+    manager: KernelManager = request.app.state.kernel_manager
+    status = manager.get_execution_status(execution_id)
+    logger.debug(
+        "api_execution_status",
+        "Status retrieved",
+        {"executionId": execution_id, "status": status.get("status")}
+    )
+    return status
 
 
 @app.post("/shutdown_kernel")
@@ -753,8 +1134,20 @@ async def shutdown_kernel(req: ShutdownKernelRequest, request: Request) -> dict[
     Raises:
         HTTPException: If kernel not found or shutdown fails
     """
+    logger: StructuredLogger = request.app.state.logger
+    logger.info(
+        "api_shutdown_kernel",
+        "POST /shutdown_kernel endpoint called",
+        {"kernelId": req.id}
+    )
     manager: KernelManager = request.app.state.kernel_manager
-    return await manager.shutdown_kernel(req.id)
+    result = await manager.shutdown_kernel(req.id)
+    logger.info(
+        "api_shutdown_kernel",
+        "Kernel shutdown via API",
+        {"kernelId": req.id}
+    )
+    return result
 
 
 if __name__ == "__main__":

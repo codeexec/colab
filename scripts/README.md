@@ -27,25 +27,44 @@ Comprehensive local testing script that verifies package installation and functi
 ### 📦 Publishing
 
 #### `publish.sh`
-Interactive script for building and publishing the package to PyPI or TestPyPI.
+Interactive script for testing, building, and publishing the package to PyPI or TestPyPI.
 
 **Usage:**
 ```bash
-./scripts/publish.sh
+./scripts/publish.sh           # Run with tests (default)
+./scripts/publish.sh --no-test # Skip tests
 ```
 
 **Features:**
+- **Automated testing** (unit + integration tests)
 - Automatic cleanup of old builds
 - Package building (wheel + source dist)
 - Package quality checks with `twine`
 - Interactive upload selection (TestPyPI/PyPI/Skip)
 
 **Steps:**
-1. Cleans previous builds
-2. Builds source distribution and wheel
-3. Validates with `twine check`
-4. Prompts for upload destination
-5. Uploads to selected repository
+1. Installs dev dependencies (pytest, requests, etc.)
+2. Runs unit tests with pytest (`test_server.py`)
+3. Runs integration tests (`test_lro.py`):
+   - Starts server in background
+   - Runs test suite
+   - Stops server
+4. Cleans previous builds
+5. Builds source distribution and wheel
+6. Validates with `twine check`
+7. Prompts for upload destination
+8. Uploads to selected repository
+
+**Testing Requirements:**
+- Tests require a running Jupyter server at `$JUPYTER_SERVER_URL` (default: http://127.0.0.1:8080)
+- Set `JUPYTER_TOKEN` if your Jupyter server requires authentication
+- Use `--no-test` flag to skip tests if needed
+
+**Environment Variables:**
+```bash
+export JUPYTER_SERVER_URL="http://localhost:8080"  # Optional
+export JUPYTER_TOKEN="your-token"                   # Optional
+```
 
 ---
 
@@ -75,11 +94,86 @@ export TESTPYPI_TOKEN='pypi-YOUR-TOKEN-HERE'
 ### 🚀 Quick Start
 
 #### `quickstart.sh`
-Quick start script for the colab-code-executor server.
+Interactive demonstration of the Long-Running Operations (LRO) pattern with the colab-code-executor server.
 
 **Usage:**
 ```bash
+# Ensure server is running first
+colab-code-executor &
+
+# Run the quick start demo
 ./scripts/quickstart.sh
+```
+
+**What it demonstrates:**
+1. **Health Check**: Verifies server is running
+2. **Start Kernel**: Creates a new Jupyter kernel
+3. **Execute Code**: Submits code for non-blocking execution
+4. **Poll Status**: Monitors execution progress in real-time
+5. **Display Results**: Shows output, return values, and execution duration
+6. **Cleanup**: Shuts down the kernel
+
+**Features:**
+- Self-contained (no external dependencies)
+- Demonstrates the LRO pattern with a 6-second computation
+- Shows both stdout output and return values
+- Visual progress indicators with emojis
+- Error handling for failed executions
+- Automatic kernel cleanup
+
+**Example Output:**
+```
+==========================================
+Colab Code Executor - Quick Start
+==========================================
+Server URL: http://127.0.0.1:8000
+
+✓ Server is healthy
+
+1️⃣  Starting kernel...
+   ✓ Kernel started: abc-123
+
+2️⃣  Submitting code for execution (non-blocking)...
+   ✓ Execution submitted: xyz-789
+   ℹ️  Code is running in background (non-blocking)
+
+3️⃣  Polling for execution status...
+   Poll #1: Status = RUNNING
+   Poll #2: Status = RUNNING
+   ...
+   Poll #7: Status = COMPLETED
+   ✓ Execution completed successfully!
+
+4️⃣  Displaying results...
+
+📊 EXECUTION SUMMARY
+============================================================
+Execution ID: xyz-789
+Kernel ID: abc-123
+Status: COMPLETED
+Duration: 6.123 seconds
+
+📤 OUTPUT
+------------------------------------------------------------
+=== Long-Running Computation Demo ===
+
+Generating random data...
+Data: [0.123 0.456 ...]
+
+Processing in steps:
+  Step 1/5 completed
+  ...
+
+📊 RETURN VALUE:
+{'mean': 0.456, 'std': 0.234, ...}
+------------------------------------------------------------
+
+5️⃣  Cleaning up...
+   ✓ Kernel shutdown: abc-123
+
+==========================================
+✅ Quick Start Complete!
+==========================================
 ```
 
 ---
@@ -100,18 +194,16 @@ colab-code-executor --help
 
 ### Build and Publish to TestPyPI
 ```bash
-# 1. Build the package
+# 1. Ensure Jupyter server is running (for integration tests)
+jupyter lab --port 8080 &
+
+# 2. Run tests and build the package
 ./scripts/publish.sh
-# Select option 3 (Skip upload)
+# - Unit tests will run automatically
+# - Integration tests will run automatically
+# - Select option 1 (TestPyPI) or 3 (Skip upload)
 
-# 2. Get API token from TestPyPI
-# Visit: https://test.pypi.org/manage/account/token/
-
-# 3. Upload with token
-export TESTPYPI_TOKEN='pypi-YOUR-TOKEN'
-./scripts/upload_with_token.sh
-
-# 4. Test installation
+# 3. Test installation
 pip install --index-url https://test.pypi.org/simple/ \
     --extra-index-url https://pypi.org/simple \
     colab-code-executor
@@ -119,13 +211,17 @@ pip install --index-url https://test.pypi.org/simple/ \
 
 ### Publish to Production PyPI
 ```bash
-# 1. Build package
-./scripts/publish.sh
-# Select option 2 (PyPI)
+# 1. Ensure Jupyter server is running
+jupyter lab --port 8080 &
 
-# Or use token authentication:
-export PYPI_TOKEN='pypi-YOUR-PRODUCTION-TOKEN'
-twine upload dist/* -u __token__ -p "$PYPI_TOKEN"
+# 2. Run tests and build package
+./scripts/publish.sh
+# - All tests will run before building
+# - Select option 2 (PyPI)
+
+# Or skip tests if already validated:
+./scripts/publish.sh --no-test
+# Select option 2 (PyPI)
 ```
 
 ## Script Permissions
