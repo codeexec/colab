@@ -139,7 +139,6 @@ class TestSettings:
     def test_default_values(self, monkeypatch):
         """Test that default values are set correctly."""
         # Clear all JUPYTER_* environment variables
-        import os
         for key in list(os.environ.keys()):
             if key.startswith('JUPYTER_'):
                 monkeypatch.delenv(key, raising=False)
@@ -152,7 +151,6 @@ class TestSettings:
     def test_env_override(self, monkeypatch):
         """Test that environment variables override defaults."""
         # Clear all JUPYTER_* environment variables first
-        import os
         for key in list(os.environ.keys()):
             if key.startswith('JUPYTER_'):
                 monkeypatch.delenv(key, raising=False)
