@@ -402,11 +402,11 @@ pip install -e ".[dev]"
 
 ```bash
 # Using the CLI (recommended)
-export JUPYTER_SERVER_URL="http://127.0.0.1:8888"
+export JUPYTER_SERVER_URL="http://127.0.0.1:8080"
 colab-code-executor
 
 # Or with options
-colab-code-executor --server-url http://127.0.0.1:8888 --port 8000
+colab-code-executor --server-url http://127.0.0.1:8080 --port 8000
 
 # Direct Python execution
 python -m colab_code_executor.server

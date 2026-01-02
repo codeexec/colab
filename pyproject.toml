@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "colab-code-executor"
-version = "0.3.1"
+version = "0.3.3"
 description = "FastAPI server for remote Jupyter kernel management with code execution capabilities"
 readme = "README.md"
 requires-python = ">=3.10"

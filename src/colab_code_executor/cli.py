@@ -1,5 +1,6 @@
 """Command-line interface for Colab Code Executor."""
 
+import os
 import sys
 import argparse
 import uvicorn
@@ -76,18 +77,18 @@ Environment Variables:
 
     args = parser.parse_args()
 
-    # Build settings dict from CLI args
-    settings_override = {}
+    # Set environment variables from CLI args to ensure they take precedence
+    # This ensures Settings() in server.py picks up CLI args
     if args.server_url:
-        settings_override["server_url"] = args.server_url
+        os.environ["JUPYTER_SERVER_URL"] = args.server_url
     if args.token:
-        settings_override["token"] = args.token
+        os.environ["JUPYTER_TOKEN"] = args.token
     if args.log_level:
-        settings_override["log_level"] = args.log_level
+        os.environ["JUPYTER_LOG_LEVEL"] = args.log_level
 
-    # Load settings (CLI args override env vars)
+    # Load settings to validate and display startup info
     try:
-        settings = Settings(**settings_override)
+        settings = Settings()
     except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"Error loading settings: {e}", file=sys.stderr)
         sys.exit(1)

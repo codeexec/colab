@@ -17,6 +17,7 @@ Features modern Python best practices including:
 
 import asyncio
 import json
+import os
 import time
 import traceback
 import uuid
@@ -84,6 +85,15 @@ class Settings(BaseSettings):
     timeout_total: float = 30.0
     crash_sleep_duration: float = 30.0
     log_level: LogLevel = LogLevel.INFO
+
+    @property
+    def is_colab_enterprise(self) -> bool:
+        """Check if running in Colab Enterprise environment.
+
+        Colab Enterprise sets VERTEX_PRODUCT=COLAB_ENTERPRISE.
+        In this environment, XSRF tokens are disabled.
+        """
+        return os.getenv("VERTEX_PRODUCT") == "COLAB_ENTERPRISE"
 
 
 # =========================
@@ -178,7 +188,10 @@ class JupyterClient:
                 connect=self.settings.timeout_connect
             )
         )
-        self.logger.info("jupyter_client", "HTTP client initialized")
+        self.logger.info(
+            "jupyter_client",
+            f"HTTP client initialized for server: {self.settings.server_url}"
+        )
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -190,17 +203,29 @@ class JupyterClient:
     async def _get_xsrf_token(self) -> str:
         """Get XSRF token from Jupyter server.
 
-        Makes a GET request to /lab to obtain XSRF cookie required for POST/DELETE.
-        Caches token for subsequent requests.
+        In Colab Enterprise (VERTEX_PRODUCT=COLAB_ENTERPRISE), XSRF is disabled,
+        so this method returns empty string.
+
+        For standard Jupyter servers, makes a GET request to /lab to obtain
+        XSRF cookie required for POST/DELETE. Caches token for subsequent requests.
 
         Returns:
-            XSRF token string
+            XSRF token string (empty for Colab Enterprise)
 
         Raises:
             httpx.HTTPError: If token retrieval fails
         """
         if not self._http_client:
             raise RuntimeError("HTTP client not initialized")
+
+        # Skip XSRF token for Colab Enterprise
+        if self.settings.is_colab_enterprise:
+            self.logger.info(
+                "get_xsrf_token",
+                "Colab Enterprise detected, XSRF tokens disabled"
+            )
+            self._xsrf_token = ""
+            return self._xsrf_token
 
         headers = {}
         if self.settings.token:
@@ -273,9 +298,11 @@ class JupyterClient:
 
         # Create kernel
         headers = self._build_auth_headers(include_xsrf=True)
+        kernel_url = self._build_url("/api/kernels")
+        self.logger.info("create_kernel", f"POST to URL: {kernel_url}")
         self.logger.debug("create_kernel", f"Request headers: {headers}")
         response = await self._http_client.post(
-            self._build_url("/api/kernels"),
+            kernel_url,
             headers=headers,
             timeout=30.0
         )
